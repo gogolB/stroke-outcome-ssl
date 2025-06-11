@@ -1,0 +1,183 @@
+# configs/byol.yaml
+# BYOL Self-Supervised Learning Configuration for ISLES 2022
+
+defaults:
+  - _self_
+
+# Data configuration
+data:
+  root_dir: ./data/ISLES2022/processed/preprocessed
+  batch_size: 4  # Adjust based on GPU memory (16GB RTX 4000 Ada)
+  num_workers: 4
+  pin_memory: true
+  
+  # Multi-modal strategy
+  modality_fusion: early  # Options: early, late, cross
+  modalities: [FLAIR, DWI, ADC]
+  
+  # Data loading
+  cache_rate: 0.1  # Cache 10% of data in memory
+  persistent_workers: true
+
+# Model configuration
+model:
+  # Encoder backbone
+  encoder:
+    name: resnet50_3d  # Options: resnet18_3d, resnet34_3d, resnet50_3d
+    in_channels: 3  # 3 modalities with early fusion
+    pretrained: false  # No ImageNet pretraining for 3D
+    features_dim: 2048  # ResNet50 output dimension
+    
+  # Projector MLP
+  projector:
+    hidden_dim: 4096
+    output_dim: 256
+    use_bn: true
+    
+  # Predictor MLP (online network only)
+  predictor:
+    hidden_dim: 4096
+    output_dim: 256
+    use_bn: true
+    
+  # Target network momentum
+  momentum:
+    base: 0.996
+    final: 1.0
+    epochs: 200  # Increase momentum over training
+
+# Augmentation configuration
+augmentation:
+  # Spatial augmentations
+  spatial:
+    random_crop:
+      enabled: true
+      size: [128, 128, 128]  # Crop size for FLAIR
+      # DWI/ADC will use proportionally smaller crops
+    
+    random_flip:
+      enabled: true
+      prob: 0.5
+      axes: [0, 1, 2]  # All axes
+    
+    random_rotate:
+      enabled: true
+      prob: 0.5
+      angle_range: [-10, 10]  # Degrees
+      
+    random_scale:
+      enabled: true
+      prob: 0.3
+      scale_range: [0.9, 1.1]
+      
+  # Intensity augmentations
+  intensity:
+    random_brightness:
+      enabled: true
+      prob: 0.5
+      brightness_range: [-0.2, 0.2]
+      
+    random_contrast:
+      enabled: true
+      prob: 0.5
+      contrast_range: [0.8, 1.2]
+      
+    random_gamma:
+      enabled: true
+      prob: 0.3
+      gamma_range: [0.8, 1.2]
+      
+    gaussian_noise:
+      enabled: true
+      prob: 0.2
+      std: 0.05
+      
+  # Medical-specific augmentations
+  medical:
+    elastic_deformation:
+      enabled: true
+      prob: 0.3
+      sigma_range: [5, 7]
+      magnitude_range: [50, 100]
+      
+    bias_field:
+      enabled: false  # Can be memory intensive
+      prob: 0.2
+      coefficients: 0.5
+
+# Training configuration
+training:
+  epochs: 200
+  
+  # Optimizer
+  optimizer:
+    name: adamw
+    lr: 1e-4
+    weight_decay: 1e-6
+    betas: [0.9, 0.999]
+    
+  # Learning rate scheduler
+  scheduler:
+    name: cosine
+    warmup_epochs: 10
+    warmup_start_lr: 1e-6
+    eta_min: 1e-7
+    
+  # Mixed precision
+  use_amp: true
+  
+  # Gradient clipping
+  gradient_clip_val: 1.0
+  
+  # Checkpointing
+  checkpoint:
+    save_top_k: 5
+    monitor: train_loss
+    mode: min
+    save_last: true
+    
+  # Early stopping (optional)
+  early_stopping:
+    enabled: false  # Usually not used for SSL
+    patience: 50
+    monitor: train_loss
+
+# Experiment configuration
+experiment:
+  name: byol_isles2022
+  project: stroke-outcome-ssl
+  seed: 42
+  deterministic: true
+  
+  # Weights & Biases logging
+  wandb:
+    enabled: true
+    entity: null  # Your W&B username
+    project: stroke-outcome-ssl
+    tags: [byol, isles2022, ssl]
+    
+  # TensorBoard logging
+  tensorboard:
+    enabled: true
+    log_dir: ./experiments/tensorboard
+
+# Evaluation configuration
+evaluation:
+  # Linear evaluation protocol
+  linear_eval:
+    enabled: true
+    every_n_epochs: 50
+    lr: 0.01
+    epochs: 100
+    
+  # Visualization
+  visualization:
+    enabled: true
+    every_n_epochs: 25
+    num_samples: 16
+    
+# Hardware configuration
+hardware:
+  device: cuda
+  gpu_id: 0
+  precision: 16  # Use 16-bit for memory efficiency

@@ -58,7 +58,7 @@ preprocessing:
     
 processing:
   # Parallel processing
-  num_workers: 4
+  num_workers: 10
   batch_size: 1  # Process one case at a time
   
   # Memory management
