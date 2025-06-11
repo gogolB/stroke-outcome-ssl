@@ -15,6 +15,24 @@ import yaml
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
+#!/usr/bin/env python3
+"""
+Analyze BYOL training results to determine if more epochs are needed
+"""
+
+import os
+import sys
+from pathlib import Path
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from glob import glob
+import yaml
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+
+# Add project root to path
+sys.path.append(str(Path(__file__).parent.parent))
+
 def find_latest_version():
     """Find the latest training version"""
     versions = glob("experiments/tensorboard/byol_isles2022_mps/version_*")
@@ -25,23 +43,50 @@ def find_latest_version():
         return None
     return sorted(versions)[-1]
 
-def load_metrics(version_dir):
-    """Load metrics from CSV logs"""
-    metrics_file = Path(version_dir) / "metrics.csv"
-    if not metrics_file.exists():
-        # Try alternative locations
-        alt_paths = [
-            Path(version_dir) / "*.csv",
-            Path(version_dir) / "logs" / "*.csv"
-        ]
-        for pattern in alt_paths:
-            files = glob(str(pattern))
-            if files:
-                metrics_file = Path(files[0])
-                break
+def load_metrics_from_tensorboard(version_dir):
+    """Load metrics from TensorBoard event files"""
+    event_files = glob(os.path.join(version_dir, "events.out.tfevents.*"))
+    if not event_files:
+        return None
     
-    if metrics_file.exists():
-        return pd.read_csv(metrics_file)
+    # Use the first event file found
+    event_file = event_files[0]
+    print(f"Loading from: {event_file}")
+    
+    # Load events
+    ea = EventAccumulator(event_file)
+    ea.Reload()
+    
+    # Extract available scalar tags
+    scalar_tags = ea.Tags()['scalars']
+    print(f"Available metrics: {scalar_tags}")
+    
+    # Create a dictionary to store metrics
+    metrics_dict = {}
+    
+    # Extract train_loss if available
+    if 'train_loss' in scalar_tags:
+        train_loss_events = ea.Scalars('train_loss')
+        steps = [e.step for e in train_loss_events]
+        values = [e.value for e in train_loss_events]
+        metrics_dict['step'] = steps
+        metrics_dict['train_loss'] = values
+    
+    # Extract other relevant metrics
+    for tag in ['val_loss', 'momentum', 'epoch']:
+        if tag in scalar_tags:
+            events = ea.Scalars(tag)
+            metrics_dict[tag] = [e.value for e in events]
+    
+    # Convert to DataFrame
+    if metrics_dict:
+        # Ensure all arrays have the same length by taking the minimum
+        min_len = min(len(v) for v in metrics_dict.values())
+        for k in metrics_dict:
+            metrics_dict[k] = metrics_dict[k][:min_len]
+        
+        return pd.DataFrame(metrics_dict)
+    
     return None
 
 def analyze_training():
@@ -57,7 +102,7 @@ def analyze_training():
     print(f"Analyzing: {version_dir}")
     
     # Load metrics
-    metrics = load_metrics(version_dir)
+    metrics = load_metrics_from_tensorboard(version_dir)
     if metrics is None:
         print("Could not load metrics. Checking checkpoint files...")
         
