@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+*.egg-info/
+.python-version
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Hydra
+outputs/
+multirun/
+.hydra/
+
+# Weights & Biases
+wanbd/
+
+# Data
+data/
+*.nii
+*.nii.gz
+*.h5
+
+# Models
+*.ckpt
+*.Python
+checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS 
+.DS_Store
+
