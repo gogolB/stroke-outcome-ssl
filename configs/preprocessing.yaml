@@ -1,0 +1,79 @@
+# configs/preprocessing.yaml
+# ISLES 2022 Preprocessing Configuration
+
+defaults:
+  - _self_
+
+data:
+  root_dir: ./data/ISLES2022/processed/BIDS
+  output_dir: ./data/ISLES2022/processed/preprocessed
+  splits_dir: ./data/ISLES2022/processed/splits
+  
+  # Target spacing for resampling (mm)
+  # Based on common medical imaging standards
+  target_spacing:
+    FLAIR: [1.0, 1.0, 1.0]  # Isotropic 1mm
+    DWI: [2.0, 2.0, 2.0]    # Isotropic 2mm (typical for DWI)
+    ADC: [2.0, 2.0, 2.0]    # Match DWI
+  
+  # Target shape after resampling
+  # Divisible by 8 for deep learning architectures
+  target_shape:
+    FLAIR: [192, 224, 192]  # Slightly larger for anatomical detail
+    DWI: [96, 112, 96]      # Smaller for diffusion
+    ADC: [96, 112, 96]      # Match DWI
+
+preprocessing:
+  # Resampling
+  resampling:
+    enabled: true
+    mode: trilinear  # trilinear for images, nearest for masks
+    anti_aliasing: true
+    
+  # Registration
+  registration:
+    enabled: true
+    reference_modality: FLAIR  # Register DWI/ADC to FLAIR
+    method: rigid  # rigid, affine, or nonlinear
+    
+  # Skull stripping
+  skull_stripping:
+    enabled: false  # Data already skull-stripped per documentation
+    
+  # Intensity normalization
+  normalization:
+    enabled: true
+    method: zscore_nonzero  # zscore, minmax, zscore_nonzero, percentile
+    percentile_lower: 1
+    percentile_upper: 99
+    
+  # Bias field correction
+  bias_correction:
+    enabled: false  # Evaluate if needed based on visual inspection
+    
+  # Cropping
+  cropping:
+    enabled: true
+    method: nonzero  # Remove empty background
+    margin: 5  # Voxels to keep around brain
+    
+processing:
+  # Parallel processing
+  num_workers: 4
+  batch_size: 1  # Process one case at a time
+  
+  # Memory management
+  use_gpu: true
+  gpu_id: 0
+  
+  # Quality control
+  save_qc_images: true
+  qc_slices: [0.3, 0.5, 0.7]  # Axial slices at 30%, 50%, 70%
+  
+  # Data format
+  save_format: nii.gz
+  dtype: float32
+  
+  # Debugging
+  verbose: true
+  dry_run: false  # If true, only process first 5 cases
