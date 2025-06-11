@@ -27,8 +27,7 @@ preprocessing:
   # Resampling
   resampling:
     enabled: true
-    mode: trilinear  # trilinear for images, nearest for masks
-    anti_aliasing: true
+    anti_aliasing: true  # If true, applies GaussianSmooth before downsampling
     
   # Registration
   registration:

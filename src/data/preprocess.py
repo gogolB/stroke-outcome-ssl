@@ -27,7 +27,7 @@ from monai.transforms import (
     Compose, LoadImaged, EnsureChannelFirstd, Spacingd,
     Orientationd, ScaleIntensityRangePercentilesd, ScaleIntensityd,
     CropForegroundd, Resized, SaveImaged, CastToTyped,
-    RandAffined, RandFlipd, RandScaleIntensityd
+    RandAffined, RandFlipd, RandScaleIntensityd, GaussianSmoothd
 )
 from monai.data import Dataset, DataLoader, MetaTensor
 from monai.utils import set_determinism
@@ -118,12 +118,24 @@ class ISLES2022Preprocessor:
             
             # Resample to target spacing
             if self.cfg.preprocessing.resampling.enabled:
+                # Apply anti-aliasing filter before downsampling if enabled
+                if self.cfg.preprocessing.resampling.anti_aliasing:
+                    # Calculate sigma based on downsampling factor
+                    # This is a simple heuristic - you may want to tune this
+                    transform_list.append(
+                        GaussianSmoothd(
+                            keys=["image"],
+                            sigma=0.5  # Adjust based on your needs
+                        )
+                    )
+                
+                # Apply spacing transform
+                # Use bilinear for images, could use nearest for labels
                 transform_list.append(
                     Spacingd(
                         keys=["image"],
                         pixdim=self.cfg.data.target_spacing[modality],
-                        mode="bilinear",
-                        anti_aliasing=self.cfg.preprocessing.resampling.anti_aliasing
+                        mode="bilinear"
                     )
                 )
             
@@ -153,7 +165,8 @@ class ISLES2022Preprocessor:
                     CropForegroundd(
                         keys=["image"],
                         source_key="image",
-                        margin=self.cfg.preprocessing.cropping.margin
+                        margin=self.cfg.preprocessing.cropping.margin,
+                        allow_smaller=False  # Set explicitly to avoid deprecation warning
                     )
                 )
             
@@ -162,7 +175,7 @@ class ISLES2022Preprocessor:
                 Resized(
                     keys=["image"],
                     spatial_size=self.cfg.data.target_shape[modality],
-                    mode="trilinear"
+                    mode="trilinear"  # Use trilinear interpolation for 3D
                 )
             )
             
