@@ -14,10 +14,11 @@ import pytorch_lightning as pl
 import nibabel as nib
 
 from monai.transforms import (
-    Compose, LoadImaged, EnsureChannelFirstd, RandCropByPosNegLabeld,
+    Compose, LoadImaged, EnsureChannelFirstd, RandSpatialCropd,
     RandFlipd, RandRotate90d, RandScaleIntensityd, RandShiftIntensityd,
     RandAdjustContrastd, RandGaussianNoised, RandGaussianSmoothd,
-    RandAffined, ToTensord, EnsureTyped, ConcatItemsd
+    RandAffined, ToTensord, EnsureTyped, ConcatItemsd, Resized,
+    CenterSpatialCropd
 )
 from monai.data import CacheDataset, DataLoader as MonaiDataLoader
 
@@ -127,20 +128,28 @@ class ISLESBYOLDataModule(pl.LightningDataModule):
         
         # Concatenate modalities (early fusion)
         if self.cfg.data.modality_fusion == "early":
+            # Resize all modalities to the same size before concatenation
+            # Use the FLAIR size as target
+            target_size = [192, 224, 192]
+            transforms.append(
+                Resized(
+                    keys=self.cfg.data.modalities,
+                    spatial_size=target_size,
+                    mode="trilinear"
+                )
+            )
             transforms.append(ConcatItemsd(keys=self.cfg.data.modalities, name="image", dim=0))
         
         # Spatial augmentations
         if self.cfg.augmentation.spatial.random_crop.enabled:
-            # Different crop sizes for different modalities
+            # Use random spatial crop
             crop_size = self.cfg.augmentation.spatial.random_crop.size
             transforms.append(
-                RandCropByPosNegLabeld(
+                RandSpatialCropd(
                     keys=["image"],
-                    label_key="image",  # Use image itself for positive regions
-                    spatial_size=crop_size,
-                    pos=1.0,  # Always crop from foreground
-                    neg=0.0,
-                    num_samples=1
+                    roi_size=crop_size,
+                    random_center=True,
+                    random_size=False
                 )
             )
         
@@ -228,19 +237,24 @@ class ISLESBYOLDataModule(pl.LightningDataModule):
         
         # Concatenate modalities
         if self.cfg.data.modality_fusion == "early":
+            # Resize all modalities to the same size before concatenation
+            target_size = [192, 224, 192]
+            transforms.append(
+                Resized(
+                    keys=self.cfg.data.modalities,
+                    spatial_size=target_size,
+                    mode="trilinear"
+                )
+            )
             transforms.append(ConcatItemsd(keys=self.cfg.data.modalities, name="image", dim=0))
         
         # Center crop to match training size
         if self.cfg.augmentation.spatial.random_crop.enabled:
             crop_size = self.cfg.augmentation.spatial.random_crop.size
             transforms.append(
-                RandCropByPosNegLabeld(
+                CenterSpatialCropd(
                     keys=["image"],
-                    label_key="image",
-                    spatial_size=crop_size,
-                    pos=1.0,
-                    neg=0.0,
-                    num_samples=1
+                    roi_size=crop_size
                 )
             )
         

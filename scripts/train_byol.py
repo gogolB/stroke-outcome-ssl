@@ -83,7 +83,7 @@ def setup_loggers(cfg: DictConfig):
     return loggers
 
 
-@hydra.main(config_path="../../configs", config_name="byol", version_base=None)
+@hydra.main(config_path="../configs", config_name="byol", version_base=None)
 def main(cfg: DictConfig):
     """Main training function"""
     
@@ -109,11 +109,30 @@ def main(cfg: DictConfig):
     
     # Create trainer
     print("Creating trainer...")
+    
+    # Handle device configuration
+    if cfg.hardware.device == "cuda":
+        accelerator = "gpu"
+        devices = [cfg.hardware.gpu_id]
+    elif cfg.hardware.device == "mps":
+        accelerator = "mps"
+        devices = 1  # MPS only supports single device
+    else:
+        accelerator = "cpu"
+        devices = 1
+    
+    # MPS doesn't support 16-bit precision yet
+    if cfg.hardware.device == "mps" and cfg.hardware.precision == 16:
+        print("Warning: MPS doesn't support 16-bit precision, using 32-bit")
+        precision = 32
+    else:
+        precision = cfg.hardware.precision
+    
     trainer = pl.Trainer(
         max_epochs=cfg.training.epochs,
-        accelerator=cfg.hardware.device,
-        devices=[cfg.hardware.gpu_id],
-        precision=cfg.hardware.precision,
+        accelerator=accelerator,
+        devices=devices,
+        precision=precision,
         callbacks=callbacks,
         logger=loggers,
         gradient_clip_val=cfg.training.gradient_clip_val,

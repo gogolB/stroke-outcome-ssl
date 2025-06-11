@@ -15,6 +15,7 @@ venv/
 outputs/
 multirun/
 .hydra/
+experiments/
 
 # Weights & Biases
 wanbd/

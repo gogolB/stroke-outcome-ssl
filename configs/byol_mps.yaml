@@ -1,0 +1,179 @@
+# configs/byol_mps.yaml
+# Complete BYOL configuration for Apple Silicon (M1/M2) with MPS
+
+# Data configuration
+data:
+  root_dir: ./data/ISLES2022/processed/preprocessed
+  batch_size: 4  # Adjust based on memory
+  num_workers: 4
+  pin_memory: false  # Not supported on MPS
+  persistent_workers: true
+  
+  # Multi-modal strategy
+  modality_fusion: early  # Options: early, late, cross
+  modalities: [FLAIR, DWI, ADC]
+  
+  # Data loading
+  cache_rate: 0.1
+  
+# Model configuration
+model:
+  # Encoder backbone
+  encoder:
+    name: resnet50_3d  # Options: resnet18_3d, resnet34_3d, resnet50_3d
+    in_channels: 3  # 3 modalities with early fusion
+    pretrained: false
+    features_dim: 2048
+    
+  # Projector MLP
+  projector:
+    hidden_dim: 4096
+    output_dim: 256
+    use_bn: true
+    
+  # Predictor MLP (online network only)
+  predictor:
+    hidden_dim: 4096
+    output_dim: 256
+    use_bn: true
+    
+  # Target network momentum
+  momentum:
+    base: 0.996
+    final: 1.0
+    epochs: 200
+
+# Augmentation configuration
+augmentation:
+  # Spatial augmentations
+  spatial:
+    random_crop:
+      enabled: true
+      size: [128, 128, 128]
+    
+    random_flip:
+      enabled: true
+      prob: 0.5
+      axes: [0, 1, 2]
+    
+    random_rotate:
+      enabled: true
+      prob: 0.5
+      angle_range: [-10, 10]
+      
+    random_scale:
+      enabled: true
+      prob: 0.3
+      scale_range: [0.9, 1.1]
+      
+  # Intensity augmentations
+  intensity:
+    random_brightness:
+      enabled: true
+      prob: 0.5
+      brightness_range: [-0.2, 0.2]
+      
+    random_contrast:
+      enabled: true
+      prob: 0.5
+      contrast_range: [0.8, 1.2]
+      
+    random_gamma:
+      enabled: true
+      prob: 0.3
+      gamma_range: [0.8, 1.2]
+      
+    gaussian_noise:
+      enabled: true
+      prob: 0.2
+      std: 0.05
+      
+  # Medical-specific augmentations
+  medical:
+    elastic_deformation:
+      enabled: true
+      prob: 0.3
+      sigma_range: [5, 7]
+      magnitude_range: [50, 100]
+      
+    bias_field:
+      enabled: false
+      prob: 0.2
+      coefficients: 0.5
+
+# Training configuration
+training:
+  epochs: 200
+  
+  # Optimizer
+  optimizer:
+    name: adamw
+    lr: 1e-4
+    weight_decay: 1e-6
+    betas: [0.9, 0.999]
+    
+  # Learning rate scheduler
+  scheduler:
+    name: cosine
+    warmup_epochs: 10
+    warmup_start_lr: 1e-6
+    eta_min: 1e-7
+    
+  # Mixed precision - disabled for MPS
+  use_amp: false
+  
+  # Gradient clipping
+  gradient_clip_val: 1.0
+  
+  # Checkpointing
+  checkpoint:
+    save_top_k: 5
+    monitor: train_loss
+    mode: min
+    save_last: true
+    
+  # Early stopping
+  early_stopping:
+    enabled: false
+    patience: 50
+    monitor: train_loss
+
+# Hardware configuration - MPS specific
+hardware:
+  device: mps  # Use Metal Performance Shaders
+  gpu_id: 0    # Ignored for MPS
+  precision: 32  # MPS doesn't support 16-bit
+
+# Experiment configuration
+experiment:
+  name: byol_isles2022_mps
+  project: stroke-outcome-ssl
+  seed: 42
+  deterministic: true
+  
+  # Weights & Biases logging
+  wandb:
+    enabled: false  # Disable for local testing
+    entity: null
+    project: stroke-outcome-ssl
+    tags: [byol, isles2022, ssl, mps]
+    
+  # TensorBoard logging
+  tensorboard:
+    enabled: true
+    log_dir: ./experiments/tensorboard
+
+# Evaluation configuration
+evaluation:
+  # Linear evaluation protocol
+  linear_eval:
+    enabled: true
+    every_n_epochs: 50
+    lr: 0.01
+    epochs: 100
+    
+  # Visualization
+  visualization:
+    enabled: true
+    every_n_epochs: 25
+    num_samples: 16
